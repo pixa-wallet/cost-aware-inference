@@ -12,9 +12,11 @@ process.env.OPENROUTER_BASIC_MODEL = "private-basic-model";
 process.env.X402_API_BYPASS_KEY = "routing-test-bypass";
 
 const upstreamModels = [];
+let failUpstream = false;
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
   if (String(input).endsWith("/chat/completions") && String(input).startsWith("https://openrouter.ai/")) {
+    if (failUpstream) return new Response("Unavailable", { status: 503 });
     const body = JSON.parse(init.body);
     upstreamModels.push(body.model);
     if (body.stream) {
@@ -43,6 +45,7 @@ try {
   const cases = [
     ["/v1/goal-based-task", process.env.OPENROUTER_GOAL_MODEL],
     ["/v1/free-tier", process.env.OPENROUTER_BASIC_MODEL],
+    ["/v1/minor-coding-task", process.env.OPENROUTER_GOAL_MODEL],
     ["/v1/chat/completions", process.env.OPENROUTER_MODEL_OVERRIDE],
   ];
 
@@ -75,6 +78,27 @@ try {
   assert.match(streamed, /"model":"goal-based-task"/);
   assert.doesNotMatch(streamed, /private-goal-model/);
   assert.match(streamed, /data: \[DONE\]/);
+
+  failUpstream = true;
+  for (const stream of [false, true]) {
+    const response = await originalFetch(`http://127.0.0.1:${address.port}/v1/minor-coding-task`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": "routing-test-bypass" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "Make a small page" }], stream }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-routify-price-usdc"), "1.00");
+    if (stream) {
+      const text = await response.text();
+      assert.match(text, /<!doctype html>/);
+      assert.match(text, /data: \[DONE\]/);
+    } else {
+      const completion = await response.json();
+      assert.equal(completion.model, "minor-coding-task");
+      assert.match(completion.choices[0].message.content, /<!doctype html>/);
+      assert.match(completion.choices[0].message.content, /<style>/);
+    }
+  }
 } finally {
   globalThis.fetch = originalFetch;
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

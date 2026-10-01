@@ -31,5 +31,16 @@ export const FREE_TIER: FixedOffering = {
   tier: "free-tier",
 };
 
-export const FIXED_OFFERINGS = [GOAL_BASED_TASK, FREE_TIER] as const;
+export const MINOR_CODING_TASK: FixedOffering = {
+  id: "minor-coding-task",
+  path: "/v1/minor-coding-task",
+  displayName: "Minor Coding Task",
+  description: "AI assistance for small coding tasks and HTML or CSS snippets.",
+  model: env.OPENROUTER_GOAL_MODEL,
+  priceUsd: "$1.00",
+  priceUsdc: "1.00",
+  tier: "minor-coding-task",
+};
+
+export const FIXED_OFFERINGS = [GOAL_BASED_TASK, FREE_TIER, MINOR_CODING_TASK] as const;
 import { env } from "./env.js";

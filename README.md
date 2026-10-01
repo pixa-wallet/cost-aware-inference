@@ -10,8 +10,9 @@ Cost-aware LLM routing for Hermes and other agents behind Algorand x402 v2 payme
 - `POST /v1/chat/completions` — routes a chat request and returns a completion, **$0.02 USDC** per request
 - `POST /v1/goal-based-task` — hire an AI agent to complete a difficult goal, **$3.00 USDC** per request
 - `POST /v1/free-tier` — AI help for very basic tasks, **$0.10 USDC** per request
+- `POST /v1/minor-coding-task` — AI help for small coding tasks, **$1.00 USDC** per request
 
-All three paid routes accept the same OpenAI-compatible chat body with `messages` and optional `stream`. The task routes choose their private upstream model regardless of a supplied `model` field. The legacy `/v1/free-tier` path still charges $0.10 USDC through x402. The router charges $0.02 USDC for every request, regardless of the logical routing option.
+All four paid routes accept the same OpenAI-compatible chat body with `messages` and optional `stream`. The task routes choose their private upstream model regardless of a supplied `model` field. The legacy `/v1/free-tier` path still charges $0.10 USDC through x402. The router charges $0.02 USDC for every request, regardless of the logical routing option. If the upstream API is unavailable, the minor coding task route returns a randomly selected HTML/CSS example in the same completion format.
 
 The paid routes use the official `@x402/core`, `@x402/avm`, `@x402/express`, and `@x402/extensions` packages. Their x402 v2 responses contain Bazaar input/output metadata and the `x402-global-challenge` attribution tag.
 
@@ -77,9 +78,9 @@ Deploy behind public HTTPS, settle one real MainNet payment through GoPlausible,
 
 ## Global x402 Challenge listing
 
-All three paid routes use one MainNet `X402_PAY_TO` address and one HTTPS domain. Each route declares Bazaar input/output metadata, has a specific description, and includes `extra.tag=x402-global-challenge` in its payment challenge. The domain root serves Open Graph metadata to browsers and a JSON service manifest to API clients.
+All four paid routes use one MainNet `X402_PAY_TO` address and one HTTPS domain. Each route declares Bazaar input/output metadata, has a specific description, and includes `extra.tag=x402-global-challenge` in its payment challenge. The domain root serves Open Graph metadata to browsers and a JSON service manifest to API clients.
 
-Before public MainNet launch, confirm that the pay-to account is funded with ALGO and opted into MainNet USDC ASA `31566704`. Then make one real MainNet payment to **each route** to create all three Bazaar resource records. A 402 challenge alone does not publish a resource in the catalog.
+Before public MainNet launch, confirm that the pay-to account is funded with ALGO and opted into MainNet USDC ASA `31566704`. Then make one real MainNet payment to **each route** to create all four Bazaar resource records. A 402 challenge alone does not publish a resource in the catalog.
 
 Check the records and merchant attribution at:
 

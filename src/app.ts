@@ -10,9 +10,10 @@ import { ChatCompletionRequestSchema, getRequestedModelId } from "./schemas/chat
 import { env } from "./config/env.js";
 import { isAllowedModelId, resolveModel, ROUTER_PRICE_USD } from "./config/catalog.js";
 import { buildDiscoveryManifest, buildModelsResponse } from "./config/discovery.js";
-import { FREE_TIER, GOAL_BASED_TASK, type FixedOffering } from "./config/offerings.js";
+import { FREE_TIER, GOAL_BASED_TASK, MINOR_CODING_TASK, type FixedOffering } from "./config/offerings.js";
 import { createOpenRouterChatCompletion } from "./lib/openrouter.js";
 import { forwardUpstreamHeaders, pipeUpstreamResponse, publicCompletionBody } from "./lib/http.js";
+import { sendCodingFallback } from "./lib/coding-fallback.js";
 
 const facilitatorClient = new HTTPFacilitatorClient({
   url: env.X402_FACILITATOR_URL,
@@ -164,6 +165,7 @@ const routes = {
   },
   "POST /v1/goal-based-task": fixedPaymentRoute(GOAL_BASED_TASK),
   "POST /v1/free-tier": fixedPaymentRoute(FREE_TIER),
+  "POST /v1/minor-coding-task": fixedPaymentRoute(MINOR_CODING_TASK),
 };
 
 const x402HttpServer = new x402HTTPResourceServer(resourceServer, routes);
@@ -200,7 +202,7 @@ app.get("/", (request: Request, response: Response) => {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cost-Aware Inference | Paid AI APIs for Agents</title>
-  <meta name="description" content="Three Algorand x402 AI APIs: cost-aware routing, goal-based agent work, and help with basic tasks.">
+  <meta name="description" content="Four Algorand x402 AI APIs: cost-aware routing, goal-based agent work, basic tasks, and minor coding tasks.">
   <meta property="og:site_name" content="Cost-Aware Inference">
   <meta property="og:title" content="Cost-Aware Inference | Paid AI APIs for Agents">
   <meta property="og:description" content="AI routing and task endpoints for agents, paid per request with Algorand USDC.">
@@ -214,6 +216,7 @@ app.get("/", (request: Request, response: Response) => {
     <li><code>POST /v1/chat/completions</code> — cost-aware AI router, $0.02 USDC</li>
     <li><code>POST /v1/goal-based-task</code> — hire an agent for a difficult goal, $3.00 USDC</li>
     <li><code>POST /v1/free-tier</code> — help with very basic tasks, $0.10 USDC</li>
+    <li><code>POST /v1/minor-coding-task</code> — help with small coding tasks, $1.00 USDC</li>
   </ul>
   <p><a href="/v1/models">Model catalog</a> · <a href="https://github.com/pixa-wallet/cost-aware-inference">Source code</a></p>
 </body>
@@ -257,6 +260,10 @@ app.post(GOAL_BASED_TASK.path, async (request: Request, response: Response) => {
 
 app.post(FREE_TIER.path, async (request: Request, response: Response) => {
   await handleChatCompletion(request, response, FREE_TIER);
+});
+
+app.post(MINOR_CODING_TASK.path, async (request: Request, response: Response) => {
+  await handleChatCompletion(request, response, MINOR_CODING_TASK);
 });
 
 async function handleChatCompletion(
@@ -313,6 +320,11 @@ async function handleChatCompletion(
   try {
     const upstream = await createOpenRouterChatCompletion(parsed.data, resolvedModel.resolvedUpstreamModel);
 
+    if (!upstream.ok && offering?.id === MINOR_CODING_TASK.id) {
+      sendCodingFallback(response, parsed.data.stream === true);
+      return;
+    }
+
     response.status(upstream.status);
     forwardUpstreamHeaders(upstream, response);
     response.setHeader("x-routify-requested-model", resolvedModel.id);
@@ -332,6 +344,14 @@ async function handleChatCompletion(
     const bodyText = await upstream.text();
     response.send(publicCompletionBody(bodyText, resolvedModel.id));
   } catch (error) {
+    if (offering?.id === MINOR_CODING_TASK.id && !response.headersSent) {
+      sendCodingFallback(response, parsed.data.stream === true);
+      return;
+    }
+    if (response.headersSent) {
+      response.end();
+      return;
+    }
     response.status(502).json({
       error: {
         message: "Inference request failed.",

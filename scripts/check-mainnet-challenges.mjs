@@ -36,7 +36,7 @@ try {
   assert.match(html, /\$0\.02 USDC/);
   assert.doesNotMatch(html, /nemotron|nvidia/i);
   const manifest = await (await fetch(baseUrl)).json();
-  assert.equal(manifest.endpoints.filter((endpoint) => endpoint.paymentRequired).length, 3);
+  assert.equal(manifest.endpoints.filter((endpoint) => endpoint.paymentRequired).length, 4);
   assert.equal(manifest.endpoints.find((endpoint) => endpoint.path === "/v1/chat/completions").priceUsdc, "0.02");
   assert.doesNotMatch(JSON.stringify(manifest), /private-goal-model|private-basic-model|private-router-model|nemotron|nvidia/i);
   const models = await (await fetch(`${baseUrl}/v1/models`)).json();
@@ -48,6 +48,7 @@ try {
   const cases = [
     ["/v1/goal-based-task", "3000000"],
     ["/v1/free-tier", "100000"],
+    ["/v1/minor-coding-task", "1000000"],
     ["/v1/chat/completions", "20000"],
   ];
 
